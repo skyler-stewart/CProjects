@@ -9,7 +9,7 @@ class chip8{
         unsigned char memory[4096];
         unsigned char gpRegisters[16]; 
 
-        unsigned short I; 
+        unsigned short addressI; 
         unsigned short pc; 
         unsigned short sp;
         std::vector<unsigned short> stack;

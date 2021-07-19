@@ -1,14 +1,15 @@
 #include "chip8.h"
 #include <iostream>
 #include <fstream>
+#include <limits.h> 
 
 // CORE FUNCTIONS ///////////////////////////////////////////////////////////////////
 
 void chip8::initialize(){
-    pc     = 0x200;  // Program counter starts at 0x200
-    opcode = 0;      // Reset current opcode	
-    I      = 0;      // Reset index register
-    sp     = 0;      // Reset stack pointer
+    pc       = 0x200;  // Program counter starts at 0x200
+    sp       = 0;      // Reset stack pointer
+    opcode   = 0;      // Reset current opcode	
+    addressI = 0;      // Reset index register
 
     // Clear screen
     int numRows = sizeof(screen)/sizeof(screen[0]);
@@ -54,7 +55,8 @@ void chip8::emulateCycle(){
     opcode = memory[pc] << 8 | memory[pc + 1];
     pc += 2; 
 
-    // Decode Opcode
+    // Decode and Execute Opcode
+    DecodeOpcode(opcode); 
 
     // Update timers
 }
@@ -136,15 +138,216 @@ void chip8::DecodeOpcode(unsigned char opcode){
 }
 
 
+// Jumps to NNN
+void chip8::Opcode1NNN(unsigned char opcode){
+   pc = opcode & 0x0FFF ; // Get NNN of opcode 1NNN
+}
+
+// Calls subroutine at NNN 
 void chip8::Opcode2NNN(unsigned char opcode){
     stack.push_back(pc) ; // save pc
     pc = opcode & 0x0FFF ; // jump to address NNN
 } 
 
+// Skips the next instruction if VX equals NN
+void chip8::Opcode3XNN(unsigned char opcode){
+    int regX = opcode & 0x0F00; // mask off reg x
+    regX = regX >> 8;
+    int addressNN = opcode & 0x00FF; // get address NN
+    if (gpRegisters[regX] == memory[addressNN])
+        pc += 2; // skip next instruction 
+}
 
-/*
+// Skips the next instruction if VX does not equal NN.
+void chip8::Opcode4XNN(unsigned char opcode){
+    int regX = opcode & 0x0F00; // mask off reg x
+    regX = regX >> 8;
+    int addressNN = opcode & 0x00FF; // get address NN
+    if (gpRegisters[regX] != memory[addressNN])
+        pc += 2; // skip next instruction 
+}
 
-Unique start opcodes: 
-First num 1-7, 9, A-D
+// Skips the next instruction if VX equals VY
+void chip8::Opcode5XY0(unsigned char opcode){
+     int regX = opcode & 0x0F00; // mask off reg x
+     regX = regX >> 8; // shift x across
+     int regY = opcode & 0x00F0; // mask off reg y
+     regY = regY >> 4; // shift y across
+     if (gpRegisters[regX] == gpRegisters[regY])
+         pc += 2; // skip next instruction
+} 
 
-*/
+// Sets VX to NN
+void chip8::Opcode6XNN(unsigned char opcode){
+    int regX = opcode & 0x0F00; 
+    regX = regX >> 8; 
+    int addressNN = opcode & 0x00FF; 
+    gpRegisters[regX] = memory[addressNN]; 
+}
+
+// Adds NN to VX (carry flag is not changed)
+void chip8::Opcode7XNN(unsigned char opcode){
+    int regX = opcode & 0x0F00; 
+    regX = regX >> 8; 
+    int addressNN = opcode & 0x00FF; 
+    gpRegisters[regX] = gpRegisters[regX] + memory[addressNN]; 
+}
+
+// Sets VX to the value of VY
+void chip8::Opcode8XY0(unsigned char opcode){
+    int regX = opcode & 0x0F00;
+    regX = regX >> 8; 
+    int regY = opcode & 0x00F0;
+    regY = regY >> 4; 
+    gpRegisters[regX] = gpRegisters[regY];
+}
+
+// Sets VX to VX or VY
+void chip8::Opcode8XY1(unsigned char opcode){
+    int regX = opcode & 0x0F00; 
+    regX = regX >> 8;
+    int regY = opcode & 0x00F0;
+    regY = regY >> 4;
+    gpRegisters[regX] = gpRegisters[regX] | gpRegisters[regY];
+}
+
+// Sets VX to VX & VY
+void chip8::Opcode8XY2(unsigned char opcode){
+    int regX = opcode & 0x0F00; 
+    regX = regX >> 8;
+    int regY = opcode & 0x00F0;
+    regY = regY >> 4;
+    gpRegisters[regX] = gpRegisters[regX] & gpRegisters[regY];
+}
+
+// Sets VX to VX ^ VY
+void chip8::Opcode8XY3(unsigned char opcode){
+    int regX = opcode & 0x0F00; 
+    regX = regX >> 8;
+    int regY = opcode & 0x00F0;
+    regY = regY >> 4;
+    gpRegisters[regX] = gpRegisters[regX] ^ gpRegisters[regY];
+}
+
+// Sets VX to VX += VY
+void chip8::Opcode8XY4(unsigned char opcode){
+    gpRegisters[0xF] = 0; 
+    int regX = opcode & 0x0F00; 
+    regX = regX >> 8;
+    int regY = opcode & 0x00F0;
+    regY = regY >> 4;
+
+    int xVal = gpRegisters[regX];
+    int yVal = gpRegisters[regY];
+    if (xVal + yVal > USHRT_MAX){
+        gpRegisters[0xF] = 1;
+    }
+    gpRegisters[regX] = xVal + yVal;
+}
+
+// VX is set to VX - VY 
+// VF is set to 0 when there's a borrow, and 1 when there is not 
+void chip8::Opcode8XY5(unsigned char opcode){
+     gpRegisters[0xF] = 1; // Set carry 
+     int regX = opcode & 0x0F00; // mask off reg x
+     regX = regX >> 8; // shift x across
+     int regY = opcode & 0x00F0; // mask off reg y
+     regY = regY >> 4; // shift y across
+
+     int xVal = gpRegisters[regX];
+     int yVal = gpRegisters[regY];
+     if (yVal > xVal) // if this is true will result in a value < 0
+          gpRegisters[0xF] = 0;
+     gpRegisters[regX] = xVal-yVal;
+} 
+
+// Stores the least significant bit of VX in VF and then shifts VX to the right by 1
+void chip8::Opcode8XY6(unsigned char opcode){
+    int regX = opcode & 0x0F00; // mask off reg x
+    regX = regX >> 8; // shift x across
+    unsigned short lsb = gpRegisters[regX] >> 15; // TODO: double check this
+    gpRegisters[0xF] = lsb;
+    gpRegisters[regX] = gpRegisters[regX] >> 1;
+} 
+
+// Sets VX to VY - VX
+// VF is set to 0 when there's a borrow, and 1 when there is not. 
+void chip8::Opcode8XY7(unsigned char opcode){
+     gpRegisters[0xF] = 1; // Set carry 
+     int regX = opcode & 0x0F00; // mask off reg x
+     regX = regX >> 8; // shift x across
+     int regY = opcode & 0x00F0; // mask off reg y
+     regY = regY >> 4; // shift y across
+
+     int xVal = gpRegisters[regX];
+     int yVal = gpRegisters[regY];
+     if (xVal > yVal) // if this is true will result in a value < 0
+          gpRegisters[0xF] = 0;
+     gpRegisters[regX] = yVal-xVal;
+} 
+
+// Stores the least significant bit of VX in VF and then shifts VX to the right by 1
+void chip8::Opcode8XYE(unsigned char opcode){
+    int regX = opcode & 0x0F00; // mask off reg x
+    regX = regX >> 8; // shift x across
+    unsigned short msb = gpRegisters[regX] << 15; // TODO: check if right kind of shift
+    gpRegisters[0xF] = msb;
+    gpRegisters[regX] = gpRegisters[regX] << 1;
+}
+
+// Skips the next instruction if VX does not equal VY
+void chip8::Opcode9XY0(unsigned char opcode){
+    int regX = opcode & 0x0F00;
+    regX = regX >> 8;
+    int regY = opcode & 0x00F0;
+    regY = regY >> 4;
+    if (gpRegisters[regX] != gpRegisters[regY])
+        pc += 2; 
+}
+
+// Sets I to the address NNN
+void chip8::OpcodeANNN(unsigned char opcode){
+    int addressNNN = opcode & 0x0FFF; 
+    addressI = addressNNN; 
+}
+
+// Jumps to the address NNN plus V0
+void chip8::OpcodeBNNN(unsigned char opcode){
+    int addressNNN = opcode & 0x0FFF;
+    pc = addressNNN + gpRegisters[0]; 
+}
+
+// Sets VX to the result of a bitwise and operation on a random number (Typically: 0 to 255) and NN
+void chip8::OpcodeCXNN(unsigned char opcode){
+    int regX = opcode & 0x0F00;
+    regX = regX >> 8;
+    // TODO 
+}
+
+// Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N+1 pixels
+// Each row of 8 pixels is read as bit-coded starting from memory location I
+// I value does not change after the execution of this instruction
+// VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn, and to 0 if that does not happen 
+void chip8::OpcodeDXYN(unsigned char opcode){
+    // TODO (in tutorial?)
+}
+
+// Skips the next instruction if the key stored in VX is pressed
+void chip8::OpcodeEX9E(unsigned char opcode){
+    int regX = opcode & 0x0F00;
+    regX = regX >> 8;
+    xVal = gpRegisters[regX];
+    if (keyState[xVal] == True){
+        pc += 2; 
+    }
+}
+
+// Stores V0 to VX (including VX) in memory starting at address I.
+void chip8::OpcodeFX55(unsigned char opcode){
+     int regX = opcode & 0x0F00;
+     regX >>= 8;
+     for (int i = 0 ; i <= regX; i++){
+          memory[addressI + i] = gpRegisters[i];
+     }
+     addressI = addressI + regX + 1;
+} 
