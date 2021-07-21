@@ -8,6 +8,7 @@
 #define THREAD_MAX 20
 int threadCount = 0; 
 
+// Print Vector ///////////////////////////////////////////////////////////////////
 void printVector(std::vector<int> myVector){
     for (int i = 0; i < myVector.size(); ++i){
         std::cout << myVector[i] << ' '; 

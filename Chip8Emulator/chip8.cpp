@@ -33,6 +33,10 @@ void chip8::initGraphics(){
             }
         }
     }
+void renderFrame(){
+    
+}
+
 
 void chip8::initEmulator(){
     pc       = 0x200;  // pc starts at 0x200
@@ -117,6 +121,8 @@ void chip8::emulateCycle(){
 		soundTimer--;
 	}	
 }
+
+void processKeyInput();  
 
 // OPCODES ///////////////////////////////////////////////////////////////////
 

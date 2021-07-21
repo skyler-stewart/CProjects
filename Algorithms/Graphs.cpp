@@ -8,9 +8,8 @@ struct Node{
     // Node contents 
     int value;
     std::vector<Node> neighbors; 
-    // Helper variables for traversal/shortest path 
+    // Helper variables for traversal 
     bool visited = false;
-    int distance = std::numeric_limits<int>::max(); 
 }; 
 
 // Node equality
