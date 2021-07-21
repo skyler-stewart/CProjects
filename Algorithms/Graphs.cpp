@@ -1,13 +1,22 @@
 #include <iostream>
 #include <vector> 
 #include <algorithm> 
+#include <limits> 
 
 // Node definition 
 struct Node{
+    // Node contents 
     int value;
     std::vector<Node> neighbors; 
-    bool visited = false; 
+    // Helper variables for traversal/shortest path 
+    bool visited = false;
+    int distance = std::numeric_limits<int>::max(); 
 }; 
+
+// Node equality
+bool operator==(Node const& node1, Node const& node2){
+    return node1.value == node2.value; 
+}
 
 // Graph definition (directed graph)
 class Graph{
@@ -23,24 +32,27 @@ class Graph{
         }
 
         // Create a new node and add it to the graph 
-        void addNode(int nodeValue, std::vector<Node> nodeNeighbors){
-            Node newNode = {nodeValue, nodeNeighbors};
+        void addNode(int nodeValue){
+            Node newNode = {nodeValue};
             graphNodes.push_back(newNode); 
             numNodes += 1; 
         }
 
         // Add a new edge 
         void addEdge(int start, int end){
-
-            auto source = std::find(graphNodes.begin(), graphNodes.end(), start);
-            auto destination = std::find(graphNodes.begin(), graphNodes.end(), end);
-            if (source != graphNodes.end() && destination != graphNodes.end()){
-                auto sourceIndex = source - graphNodes.begin();
-                auto destinationIndex = destination - graphNodes.begin(); 
-                graphNodes[sourceIndex].neighbors.push_back(graphNodes[destinationIndex]); 
+            
+            // Find start and end nodes if possible
+            int source = -1; 
+            int dest = -1; 
+            for (int i = 0; i < numNodes; ++i){
+                if (graphNodes[i].value == start) source = i; 
+                if (graphNodes[i].value == end) dest = i; 
+            }
+            if (source != -1 && dest != -1){
+                graphNodes[source].neighbors.push_back(graphNodes[dest]);
             }
             else{
-                std::cout << 'Edge not added' << std::endl; 
+                std::cout << "Edge not added" << std::endl; 
             }
         }
 
@@ -56,7 +68,7 @@ class Graph{
         // Print graph
         void printGraph(){
             for (int i = 0; i < numNodes; ++i){
-                std::cout << "Node{ value = " + std::to_string(graphNodes[i].value) + " neighbors = "; 
+                std::cout << "Node{value = " + std::to_string(graphNodes[i].value) + " neighbors = "; 
                 for (int j = 0; j < graphNodes[i].neighbors.size(); ++j){
                     std::cout << std::to_string(graphNodes[i].neighbors[j].value) << ' '; 
                 }
@@ -93,9 +105,11 @@ class Graph{
             for (int i = 0; i < graphNodes.size(); ++i){
                 graphNodes[i].visited = false; 
             }
+            // Setup queue
             std::vector<Node> queue; 
             startNode.visited = true; 
             queue.push_back(startNode); 
+            // Main loop 
             while (!queue.empty()){
                 Node current = queue.front(); 
                 queue.erase(queue.begin());
@@ -109,15 +123,21 @@ class Graph{
             }
 
         }
-
-        // Shortest path between two nodes 
-        void Dijkstra(Node startNode, Node endNode){
-
-        }
 };
 
 int main(){
 
     Graph myGraph; 
+    myGraph.addNode(1); 
+    myGraph.addNode(2); 
+    myGraph.addNode(3); 
+    myGraph.addNode(4); 
+
+    myGraph.addEdge(1, 2); 
+    myGraph.addEdge(2, 3); 
+    myGraph.addEdge(3, 4); 
+    myGraph.addEdge(2, 4); 
+
+    myGraph.printGraph(); 
     return 0; 
 }

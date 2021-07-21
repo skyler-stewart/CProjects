@@ -2,11 +2,43 @@
 #include <iostream>
 #include <fstream>
 #include <limits.h> 
+#include <stdlib.h>
+#include <time.h>
+#include <filesystem>
+#include <SDL2/SDL.h>
 
 // CORE FUNCTIONS ///////////////////////////////////////////////////////////////////
 
-void chip8::initialize(){
-    pc       = 0x200;  // Program counter starts at 0x200
+void chip8::initGraphics(){
+	SDL_Window* window = NULL;
+	SDL_Surface* screenSurface = NULL;
+
+	if(SDL_Init(SDL_INIT_VIDEO) < 0){
+		std::cout << "SDL could not initialize. SDL_Error: %s\n" + std::string(SDL_GetError()) << std::endl;
+	}
+	else{
+		window = SDL_CreateWindow("Chip8 Emulator", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, myChip8.screenWidth, myChip8.screenHeight, SDL_WINDOW_SHOWN);
+		if(window == NULL){
+			std::cout << "SDL window could not be created. SDL_Error: %s\n" + std::string(SDL_GetError()) << std::endl;
+		}
+		else{
+			//Get window surface
+			screenSurface = SDL_GetWindowSurface( window );
+			//Fill the surface white
+			SDL_FillRect( screenSurface, NULL, SDL_MapRGB( screenSurface->format, 0xFF, 0xFF, 0xFF ) );
+			//Update the surface
+			SDL_UpdateWindowSurface( window );
+			//Wait ten seconds
+			SDL_Delay( 10000 );
+		}
+	}
+
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+}
+
+void chip8::initEmulator(){
+    pc       = 0x200;  // pc starts at 0x200
     sp       = 0;      // Reset stack pointer
     opcode   = 0;      // Reset current opcode	
     addressI = 0;      // Reset index register
@@ -43,11 +75,30 @@ void chip8::initialize(){
 
 }
 
-void chip8::loadGame(){
-   FILE *in;
-   in = fopen( "c:/INVADERS", "rb" );
-   fread( &memory[0x200], 0xfff, 1, in);
-   fclose(in);
+void chip8::loadGame(const std::string &fileName){
+    // Open file 
+    FILE *gameFile;
+    gameFile = fopen(fileName, "rb");
+
+    // Error checking 
+    if (gameFile == NULL){
+        fputs("Game file not found!", stderr); 
+        return false;
+    }
+
+    int gameFileSize = std::filesystem::file_size(gameFile); 
+    int memSize = 4096 - 512; 
+    if (gameFileSize > memSize){
+        fputs("Game file is too large!", stderr); 
+        return false; 
+    }
+
+    // Copy game in to memory 
+    fread(&memory[0x200], 0xfff, 1, in);
+    fclose(in);
+
+    // Close file 
+    fclose(gameFile); 
 }
 
 void chip8::emulateCycle(){
@@ -59,6 +110,14 @@ void chip8::emulateCycle(){
     DecodeOpcode(opcode); 
 
     // Update timers
+    if(delay_timer > 0){
+        delay_timer--;
+    }
+	if(sound_timer > 0){
+		if(sound_timer == 1)
+			printf("BEEP\n");
+		sound_timer--;
+	}	
 }
 
 // OPCODES ///////////////////////////////////////////////////////////////////
@@ -137,6 +196,27 @@ void chip8::DecodeOpcode(unsigned char opcode){
 
 }
 
+// Calls machine code routine at address NNN
+void chip8::Opcode0NNN(unsigned char opcode){
+    int addrNNN = opcode & 0x0FFF;
+    pc = addrNNN;  
+}
+
+// Clears screen 
+void chip8::Opcode00E0(unsigned char opcode){
+   for (int i = 0; i < screenRows; i++){
+       for (int j = 0; j < screenCols; j++){
+           screen[i][j] = 0; 
+       }
+   }
+}
+
+// Returns from a subroutine 
+void chip8::Opcode00EE(unsigned char opcode){
+    int returnDest = stack.back(); 
+    stack.pop_back(); 
+    pc = returnDest; 
+}
 
 // Jumps to NNN
 void chip8::Opcode1NNN(unsigned char opcode){
@@ -265,7 +345,7 @@ void chip8::Opcode8XY5(unsigned char opcode){
 void chip8::Opcode8XY6(unsigned char opcode){
     int regX = opcode & 0x0F00; // mask off reg x
     regX = regX >> 8; // shift x across
-    unsigned short lsb = gpRegisters[regX] >> 15; // TODO: double check this
+    unsigned short lsb = gpRegisters[regX] >> 15;
     gpRegisters[0xF] = lsb;
     gpRegisters[regX] = gpRegisters[regX] >> 1;
 } 
@@ -290,7 +370,7 @@ void chip8::Opcode8XY7(unsigned char opcode){
 void chip8::Opcode8XYE(unsigned char opcode){
     int regX = opcode & 0x0F00; // mask off reg x
     regX = regX >> 8; // shift x across
-    unsigned short msb = gpRegisters[regX] << 15; // TODO: check if right kind of shift
+    unsigned short msb = gpRegisters[regX] << 15;
     gpRegisters[0xF] = msb;
     gpRegisters[regX] = gpRegisters[regX] << 1;
 }
@@ -321,33 +401,155 @@ void chip8::OpcodeBNNN(unsigned char opcode){
 void chip8::OpcodeCXNN(unsigned char opcode){
     int regX = opcode & 0x0F00;
     regX = regX >> 8;
-    // TODO 
+    int addrNN = opcode & 0x00FF; 
+
+    std::srand((unsigned)time(NULL));
+    unsigned short randNum = rand() % USHRT_MAX; 
+    gpRegisters[regX] = randNum & addrNN; 
 }
 
 // Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N+1 pixels
 // Each row of 8 pixels is read as bit-coded starting from memory location I
 // I value does not change after the execution of this instruction
-// VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn, and to 0 if that does not happen 
+// VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn, and to 0 otherwise 
 void chip8::OpcodeDXYN(unsigned char opcode){
-    // TODO (in tutorial?)
+
+    // Get registers
+    int regX = opcode & 0x0F00;
+    regX = regX >> 8;
+    int regY = opcode & 0x00F0;
+    regY = regY >> 4;
+
+    // Get sprite coordinate and set V0 
+    int height = opcode & 0x000F;
+    int coordX = gpRegisters[regX];
+    int coordY = gpRegisters[regY];
+    gpRegisters[0xf] = 0;
+
+    // Draw sprite
+    for (int yLines = 0; yLines < height; yLines++){
+        unsigned char data = memory[addressI + yLines];
+        int xPixel = 0;
+        int xPixelInverse = 7;
+        for (xPixel = 0; xPixel <= 7; xPixel++, xPixelInverse--){
+            int mask = 1 << xPixelInverse;
+            if (data & mask){
+                int x = coordX + xPixel;
+                int y = coordY + yLines;
+                if (screen[x][y] == 1) 
+                    gpRegisters[0xF] = 1; // Collision occured 
+                screen[x][y] ^= 1;
+            }
+        }
+    }
 }
 
 // Skips the next instruction if the key stored in VX is pressed
 void chip8::OpcodeEX9E(unsigned char opcode){
     int regX = opcode & 0x0F00;
     regX = regX >> 8;
-    xVal = gpRegisters[regX];
-    if (keyState[xVal] == True){
+    int xVal = gpRegisters[regX];
+    if (keyState[xVal] == true){
         pc += 2; 
     }
 }
 
+// Skips the next instruction if the key stored in VX is not pressed
+void chip8::OpcodeEXA1(unsigned char opcode){
+    int regX = opcode & 0x0F00;
+    regX = regX >> 8;
+    int xVal = gpRegisters[regX];
+    if (keyState[xVal] == false){
+        pc += 2; 
+    }
+}
+
+// Sets VX to the value of the delay timer
+void chip8::OpcodeFX07(unsigned char opcode){
+    int regX = opcode & 0x0F00;
+    regX = regX >> 8;
+    gpRegisters[regX] = delayTimer; 
+}
+
+// A key press is awaited, and then stored in VX. 
+// Blocking Operation. All instruction halted until next key event.  
+void chip8::OpcodeFX0A(unsigned char opcode){
+    int regX = opcode & 0x0F00;
+    regX = regX >> 8;
+    int k = 0; 
+    while(k < 16){
+        if (keyState[k]){
+            gpRegisters[regX] = k; 
+            break; 
+        } 
+        if (k >= 15){
+            k = 0; 
+        }
+    }
+}
+
+// Sets the delay timer to VX
+void chip8::OpcodeFX15(unsigned char opcode){
+    int regX = opcode & 0x0F00;
+    regX = regX >> 8;
+    delayTimer = gpRegisters[regX]; 
+}
+
+// Sets the sound timer to VX
+void chip8::OpcodeFX18(unsigned char opcode){
+    int regX = opcode & 0x0F00;
+    regX = regX >> 8;
+    soundTimer = gpRegisters[regX]; 
+}
+
+// Adds VX to I. VF is not affected.
+void chip8::OpcodeFX1E(unsigned char opcode){
+    int regX = opcode & 0x0F00;
+    regX = regX >> 8;
+    addressI += gpRegisters[regX]; 
+}
+
+// Sets I to the location of the sprite for the character in VX. 
+// Characters 0-F (in hexadecimal) are represented by a 4x5 font. 
+void chip8::OpcodeFX29(unsigned char opcode){
+    int regX = opcode & 0x0F00;
+    regX = regX >> 8;
+    addressI = gpRegisters[regX] * 5; 
+}
+
+// Takes the decimal representation of VX, place the hundreds digit in memory at location in I, 
+// the tens digit at location I+1, and the ones digit at location I+2.
+void chip8::OpcodeFX33(unsigned char opcode){
+    int regX = opcode & 0x0F00;
+    regX = regX >> 8;
+    int xVal = gpRegisters[regX]; 
+    memory[addressI + 2] = xVal % 10;
+    xVal /= 10; 
+    memory[addressI + 1] = xVal % 10;
+    xVal /= 10; 
+    memory[addressI] = xVal % 10;
+}
+
 // Stores V0 to VX (including VX) in memory starting at address I.
 void chip8::OpcodeFX55(unsigned char opcode){
-     int regX = opcode & 0x0F00;
-     regX >>= 8;
-     for (int i = 0 ; i <= regX; i++){
-          memory[addressI + i] = gpRegisters[i];
-     }
-     addressI = addressI + regX + 1;
+    int regX = opcode & 0x0F00;
+    regX >>= 8;
+    for (int i = 0 ; i <= regX; i++){
+        memory[addressI + i] = gpRegisters[i];
+    }
+    addressI = addressI + regX + 1;
+} 
+
+// Fills V0 to VX (including VX) with values from memory starting at address I. 
+// The offset from I is increased by 1 for each value written, but I itself is left unmodified.
+void chip8::OpcodeFX65(unsigned char opcode){
+    int regX = opcode & 0x0F00;
+    regX >>= 8;
+
+    int copyI = addressI;
+    for(int i = 0; i <= regX; i++){
+        gpRegisters[i] = memory[copyI]; 
+        copyI++; 
+    }
+    
 } 

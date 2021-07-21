@@ -1,21 +1,28 @@
 #include <vector> 
+#include <string> 
 
 class chip8{
     public: 
-        // 35 opcodes, 2 bytes each 
-        unsigned short opcode; 
+        // Hardware
+        const static int screenWidth = 64; 
+        const static int screenHeight = 32;   
+        unsigned char screen[screenWidth][screenHeight];
+        unsigned char keyState[16];
 
-        // Memory (0x200 to 0xFFF for working memory)
+        // Memory (0x200 to 0xFFF for working memory), Registers, Stack 
         unsigned char memory[4096];
-        unsigned char gpRegisters[16]; 
-
-        unsigned short addressI; 
-        unsigned short pc; 
-        unsigned short sp;
+        unsigned char gpRegisters[16];
         std::vector<unsigned short> stack;
 
-        unsigned char keyState[16];
-        unsigned char screen[64][32];
+        // Pointers 
+        unsigned short sp;
+        unsigned short pc;
+        unsigned short addressI;  
+
+        // 35 opcodes, 2 bytes each 
+        unsigned short opcode; 
+        
+        // Timers and Flags 
         unsigned char delayTimer; 
         unsigned char soundTimer;
         bool drawFlag;  
@@ -41,51 +48,52 @@ class chip8{
         0xF0, 0x80, 0xF0, 0x80, 0x80  // F
         };
 
-    // Core Functions 
-    void initialize();
-    void emulateCycle(); 
-    void loadGame(); 
-    void DecodeOpcode(unsigned char opcode); 
+        // Core Functions 
+        void initGraphics(); 
+        void initEmulator();
+        void emulateCycle(); 
+        void loadGame(const std::string &fileName); 
+        void DecodeOpcode(unsigned char opcode); 
 
-    // Execute Opcodes 
-    void Opcode0NNN(unsigned char opcode);
-    void Opcode00E0(unsigned char opcode);
-    void Opcode00EE(unsigned char opcode);
+        // Execute Opcode 
+        void Opcode0NNN(unsigned char opcode);
+        void Opcode00E0(unsigned char opcode);
+        void Opcode00EE(unsigned char opcode);
 
-    void Opcode1NNN(unsigned char opcode);
-    void Opcode2NNN(unsigned char opcode);
-    void Opcode3XNN(unsigned char opcode);
-    void Opcode4XNN(unsigned char opcode);
-    void Opcode5XY0(unsigned char opcode);
-    void Opcode6XNN(unsigned char opcode);
-    void Opcode7XNN(unsigned char opcode);
+        void Opcode1NNN(unsigned char opcode);
+        void Opcode2NNN(unsigned char opcode);
+        void Opcode3XNN(unsigned char opcode);
+        void Opcode4XNN(unsigned char opcode);
+        void Opcode5XY0(unsigned char opcode);
+        void Opcode6XNN(unsigned char opcode);
+        void Opcode7XNN(unsigned char opcode);
 
-    void Opcode8XY0(unsigned char opcode);
-    void Opcode8XY1(unsigned char opcode);
-    void Opcode8XY2(unsigned char opcode);
-    void Opcode8XY3(unsigned char opcode);
-    void Opcode8XY4(unsigned char opcode);
-    void Opcode8XY5(unsigned char opcode);
-    void Opcode8XY6(unsigned char opcode);
-    void Opcode8XY7(unsigned char opcode);
-    void Opcode8XYE(unsigned char opcode);
+        void Opcode8XY0(unsigned char opcode);
+        void Opcode8XY1(unsigned char opcode);
+        void Opcode8XY2(unsigned char opcode);
+        void Opcode8XY3(unsigned char opcode);
+        void Opcode8XY4(unsigned char opcode);
+        void Opcode8XY5(unsigned char opcode);
+        void Opcode8XY6(unsigned char opcode);
+        void Opcode8XY7(unsigned char opcode);
+        void Opcode8XYE(unsigned char opcode);
 
-    void Opcode9XY0(unsigned char opcode);
-    void OpcodeANNN(unsigned char opcode);
-    void OpcodeBNNN(unsigned char opcode);
-    void OpcodeCXNN(unsigned char opcode);
-    void OpcodeDXYN(unsigned char opcode);
+        void Opcode9XY0(unsigned char opcode);
+        void OpcodeANNN(unsigned char opcode);
+        void OpcodeBNNN(unsigned char opcode);
+        void OpcodeCXNN(unsigned char opcode);
+        void OpcodeDXYN(unsigned char opcode);
 
-    void OpcodeEX9E(unsigned char opcode);
-    void OpcodeEXA1(unsigned char opcode);
+        void OpcodeEX9E(unsigned char opcode);
+        void OpcodeEXA1(unsigned char opcode);
 
-    void OpcodeFX07(unsigned char opcode);
-    void OpcodeFX0A(unsigned char opcode);
-    void OpcodeFX15(unsigned char opcode);
-    void OpcodeFX18(unsigned char opcode);
-    void OpcodeFX1E(unsigned char opcode);
-    void OpcodeFX29(unsigned char opcode);
-    void OpcodeFX33(unsigned char opcode);
-    void OpcodeFX55(unsigned char opcode);
-    void OpcodeFX65(unsigned char opcode);
+        void OpcodeFX07(unsigned char opcode);
+        void OpcodeFX0A(unsigned char opcode);
+        void OpcodeFX15(unsigned char opcode);
+        void OpcodeFX18(unsigned char opcode);
+        void OpcodeFX1E(unsigned char opcode);
+        void OpcodeFX29(unsigned char opcode);
+        void OpcodeFX33(unsigned char opcode);
+        void OpcodeFX55(unsigned char opcode);
+        void OpcodeFX65(unsigned char opcode);
 };
