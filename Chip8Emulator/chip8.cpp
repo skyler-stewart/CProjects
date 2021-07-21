@@ -1,41 +1,38 @@
-#include "chip8.h"
-#include <iostream>
+
 #include <fstream>
+#include <filesystem>
 #include <limits.h> 
 #include <stdlib.h>
 #include <time.h>
-#include <filesystem>
 #include <SDL2/SDL.h>
+#include "chip8.hpp"
 
 // CORE FUNCTIONS ///////////////////////////////////////////////////////////////////
 
 void chip8::initGraphics(){
-	SDL_Window* window = NULL;
-	SDL_Surface* screenSurface = NULL;
+        SDL_Window* window = NULL;
+        SDL_Surface* screenSurface = NULL;
 
-	if(SDL_Init(SDL_INIT_VIDEO) < 0){
-		std::cout << "SDL could not initialize. SDL_Error: %s\n" + std::string(SDL_GetError()) << std::endl;
-	}
-	else{
-		window = SDL_CreateWindow("Chip8 Emulator", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, myChip8.screenWidth, myChip8.screenHeight, SDL_WINDOW_SHOWN);
-		if(window == NULL){
-			std::cout << "SDL window could not be created. SDL_Error: %s\n" + std::string(SDL_GetError()) << std::endl;
-		}
-		else{
-			//Get window surface
-			screenSurface = SDL_GetWindowSurface( window );
-			//Fill the surface white
-			SDL_FillRect( screenSurface, NULL, SDL_MapRGB( screenSurface->format, 0xFF, 0xFF, 0xFF ) );
-			//Update the surface
-			SDL_UpdateWindowSurface( window );
-			//Wait ten seconds
-			SDL_Delay( 10000 );
-		}
-	}
-
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-}
+        if(SDL_Init(SDL_INIT_VIDEO) < 0){
+            std::cout << "SDL could not initialize. SDL_Error: %s\n" + std::string(SDL_GetError()) << std::endl;
+        }
+        else{
+            window = SDL_CreateWindow("Chip8 Emulator", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, this->screenWidth, this->screenHeight, SDL_WINDOW_SHOWN);
+            if(window == NULL){
+                std::cout << "SDL window could not be created. SDL_Error: %s\n" + std::string(SDL_GetError()) << std::endl;
+            }
+            else{
+                //Get window surface
+                screenSurface = SDL_GetWindowSurface(window);
+                //Fill the surface white
+                SDL_FillRect(screenSurface, NULL, SDL_MapRGB(screenSurface->format, 0xFF, 0xFF, 0xFF));
+                //Update the surface
+                SDL_UpdateWindowSurface(window);
+                //Wait ten seconds
+                SDL_Delay(2000);
+            }
+        }
+    }
 
 void chip8::initEmulator(){
     pc       = 0x200;  // pc starts at 0x200
@@ -53,9 +50,11 @@ void chip8::initEmulator(){
     }
     drawFlag = true;
 
-    // Clear stack and registers V0-VF
-    for (int i = 0; i < 16; ++i){
-        stack[i] = 0;
+    // Clear stack 
+    stack.clear(); 
+
+    // Clear registers V0-VF
+    for (int i = 0; i < 16; i++){
         gpRegisters[i] = 0; 
     }
 
@@ -63,7 +62,7 @@ void chip8::initEmulator(){
     for (int i = 0; i < 4096; ++i){
         memory[i] = 0; 
     }
-    
+
     // Load fontset
     for(int i = 0; i < 80; ++i){
         memory[i] = chip8_fontset[i];
@@ -78,24 +77,23 @@ void chip8::initEmulator(){
 void chip8::loadGame(const std::string &fileName){
     // Open file 
     FILE *gameFile;
-    gameFile = fopen(fileName, "rb");
+    gameFile = fopen(fileName.c_str(), "rb");
 
     // Error checking 
     if (gameFile == NULL){
         fputs("Game file not found!", stderr); 
-        return false;
+        return;
     }
 
-    int gameFileSize = std::filesystem::file_size(gameFile); 
-    int memSize = 4096 - 512; 
-    if (gameFileSize > memSize){
-        fputs("Game file is too large!", stderr); 
-        return false; 
-    }
+    // int gameFileSize = filesystem::file_size(fileName);
+    // int memSize = 4096 - 512; 
+    // if (gameFileSize > memSize){
+    //     fputs("Game file is too large!", stderr); 
+    //     return; 
+    // }
 
     // Copy game in to memory 
-    fread(&memory[0x200], 0xfff, 1, in);
-    fclose(in);
+    fread(&memory[0x200], 0xfff, 1, gameFile);
 
     // Close file 
     fclose(gameFile); 
@@ -110,13 +108,13 @@ void chip8::emulateCycle(){
     DecodeOpcode(opcode); 
 
     // Update timers
-    if(delay_timer > 0){
-        delay_timer--;
+    if(delayTimer > 0){
+        delayTimer--;
     }
-	if(sound_timer > 0){
-		if(sound_timer == 1)
+	if(soundTimer > 0){
+		if(soundTimer == 1)
 			printf("BEEP\n");
-		sound_timer--;
+		soundTimer--;
 	}	
 }
 
@@ -204,8 +202,8 @@ void chip8::Opcode0NNN(unsigned char opcode){
 
 // Clears screen 
 void chip8::Opcode00E0(unsigned char opcode){
-   for (int i = 0; i < screenRows; i++){
-       for (int j = 0; j < screenCols; j++){
+   for (int i = 0; i < screenWidth; i++){
+       for (int j = 0; j < screenHeight; j++){
            screen[i][j] = 0; 
        }
    }
